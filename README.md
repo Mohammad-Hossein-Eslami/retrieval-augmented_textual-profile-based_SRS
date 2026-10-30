@@ -98,7 +98,7 @@ The following results were provided for three Amazon Reviews categories. **Retri
 | Movies & TV | Profiles Text | 0.1265 | 0.2143 | 0.1048 | 0.1501 |
 | Movies & TV | SASRec | 0.1253 | 0.2051 | 0.1077 | 0.1532 |
 
-The combined model has the highest NDCG@10 and HR@10 in all three categories. For **Movies & TV**, however, the SASRec baseline has higher NDCG@5 than the Profiles Text variant, and higher HR@5 as well. Results are presented as supplied; repeated-run variance and statistical significance have not been provided.
+The combined model has the highest NDCG@10 and HR@10 in all three categories. For **Movies & TV**, however, the SASRec baseline has higher NDCG@5 than the Profiles Text variant, and higher HR@5 as well. Results are presented as supplied.
 
 **Comparison caveat:** the provided evaluation code samples 1,000 negative item IDs per positive target. The results should be compared only when the same dataset processing, split, and evaluation protocol were used for all variants. The provided results image does not independently establish those experimental controls.
 

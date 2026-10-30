@@ -10,19 +10,6 @@ Experiments were conducted on three **Amazon Reviews categories**: **Beauty**, *
 
 Review fields include user ID, item ASIN, rating, timestamp, review title/text, and helpful-vote count. Metadata fields include item title, features, description, and categories. If a `verified_purchase` column exists, only verified purchases are retained. Interactions without essential identifiers, ratings, or timestamps are dropped, and repeated user–item interactions are deduplicated by keeping the latest record.
 
-The current user-selection configuration is:
-
-| Setting | Value |
-| --- | ---: |
-| Minimum interactions for eligible users | 5 |
-| Core-user threshold | 15 |
-| Target user count | 12,000 |
-| User sampling seed | 42 |
-| Maximum reviews per preference side | 10 |
-| Positive / negative thresholds | ≥4 / ≤2 |
-
-All users with at least 15 interactions are retained; users with 5–14 interactions are sampled to fill toward the target. The target is not a guarantee of the final user count. The script orders each user's interactions chronologically and initially labels the last two interactions validation and test, respectively, with earlier interactions assigned to training.
-
 **Dataset statistics:** final counts of users, items, and interactions depend on the input files and filtering. Add measured post-processing statistics here once available; they cannot be determined from the scripts alone.
 
 ## Requirements

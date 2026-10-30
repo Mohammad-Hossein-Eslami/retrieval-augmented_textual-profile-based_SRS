@@ -10,8 +10,6 @@ Experiments were conducted on three **Amazon Reviews categories**: **Beauty**, *
 
 Review fields include user ID, item ASIN, rating, timestamp, review title/text, and helpful-vote count. Metadata fields include item title, features, description, and categories. If a `verified_purchase` column exists, only verified purchases are retained. Interactions without essential identifiers, ratings, or timestamps are dropped, and repeated user–item interactions are deduplicated by keeping the latest record.
 
-**Dataset statistics:** final counts of users, items, and interactions depend on the input files and filtering. Add measured post-processing statistics here once available; they cannot be determined from the scripts alone.
-
 ## Requirements
 
 - Python with `torch`, `transformers`, `sentence-transformers` model access, `numpy`, and `pandas`

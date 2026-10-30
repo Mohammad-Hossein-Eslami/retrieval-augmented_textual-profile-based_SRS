@@ -16,8 +16,6 @@ Review fields include user ID, item ASIN, rating, timestamp, review title/text, 
 - Local Qwen2.5-7B model files for profile generation
 - CUDA-capable GPU recommended for LLM inference and training
 
-Install dependencies using a project-specific, version-pinned `requirements.txt` once tested. Exact supported package versions are not established by the source files.
-
 ## Execution guide
 
 Run the following scripts in order from a working directory where their relative paths resolve correctly.

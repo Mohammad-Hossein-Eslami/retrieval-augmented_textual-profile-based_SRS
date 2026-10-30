@@ -82,8 +82,6 @@ The implementation reports **Hit Rate at 10 (HR@10)** and **Normalized Discounte
 
 The training loader additionally reserves the last item of sufficiently long `train.txt` histories for validation. The test evaluation uses this validation item in the input sequence, while the validation evaluation uses the preceding training history. Validation can be empty for users with short histories. The script prints training, validation, and test metrics at each evaluation interval; checkpoint selection uses validation NDCG@10.
 
-**Reproducibility note:** the preprocessing script initially marks a validation interaction, but the postprocessing script writes that interaction into `train.txt`; the loader then creates a new validation holdout from `train.txt`. This means the final evaluation split is not identical to the initial split labels. Document or revise this behavior before reporting publication-quality comparisons.
-
 ## Experimental results
 
 The following results were provided for three Amazon Reviews categories. **Retrieval + Text** denotes the combined model, **Profiles Text** denotes the text-profile variant, and **SASRec** is the baseline. Higher is better for all metrics.

@@ -4,29 +4,6 @@ This repository implements a sequential recommender based on **SASRec**, augment
 
 The implementation uses Qwen2.5-7B to summarize preferences from historical reviews, `sentence-transformers/all-MiniLM-L6-v2` to encode those profiles, and a self-attention sequential recommender to score candidate items. Experiments cover three Amazon Reviews categories: Beauty, Video Games, and Movies & TV. The reported results compare vanilla SASRec, SASRec with textual profiles, and the combined retrieval-and-text model.
 
-## Method
-
-### 1. User preference profiles
-
-For each user, the preprocessing pipeline considers **training interactions only** when generating profiles. Ratings of **4–5** are treated as positive and **1–2** as negative; rating 3 is omitted from preference extraction. For each sentiment, up to 10 interactions are selected using review helpfulness, rating extremity, and review length. Qwen2.5-7B first extracts short preference statements from individual reviews and item metadata, then summarizes positive and negative preferences separately and combines them into a final profile.
-
-The resulting JSONL records contain `user_idx`, `positive_interactions`, `negative_interactions`, `positive_profile`, `negative_profile`, and `profile`.
-
-### 2. Text embeddings and neighbor retrieval
-
-User profiles are embedded using a frozen `all-MiniLM-L6-v2` encoder with attention-mask-aware mean pooling. Cosine similarity between normalized user embeddings identifies the **20 most similar other users** (subject to dataset size). Neighbor interactions are aggregated into a memory of up to **50 items per user**. Contributions are weighted by a softmax over user similarity (temperature 0.15) and interaction recency (decay factor 0.95); items already present in the target user's training history are excluded.
-
-### 3. SASRec with semantic and retrieved context
-
-The sequential backbone uses item and positional embeddings, causal multi-head self-attention, and point-wise feed-forward layers. Additional components are:
-
-- **Input-level item context:** a weighted neighbor-item vector is added to valid sequence item embeddings with a learned, bounded residual scale.
-- **User-profile fusion:** text embeddings are projected into the SASRec hidden dimension, normalized, and combined with sequence features using a learned element-wise gate.
-- **Context-level retrieval:** cross-attention uses sequence features as queries and weighted neighbor-item embeddings as keys and values, with a bounded residual update.
-- **Candidate-level retrieval:** a similarity-based neighbor-memory score is added to candidate item logits with a learned coefficient.
-
-The model is trained with positive and sampled-negative item prediction using binary cross-entropy and Adam. These retrieval components use the training interactions and learned item embeddings; they do **not** retrieve passages from an external document corpus.
-
 ## Dataset and preprocessing
 
 Experiments were conducted on three **Amazon Reviews categories**: **Beauty**, **Video Games**, and **Movies & TV**. The supplied preprocessing script currently defaults to `DATASET_NAME = "Video_Games"`, with inputs `Video_Games.json` and `meta_Video_Games.json`. To run another category, change `DATASET_NAME` and ensure that its review and metadata files match the expected schema. The exact source release and final processed dataset sizes should be added once confirmed.

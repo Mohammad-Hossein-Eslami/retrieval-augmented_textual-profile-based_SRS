@@ -4,17 +4,57 @@ This repository implements a sequential recommender based on **SASRec**, augment
 
 The implementation uses Qwen2.5-7B to summarize preferences from historical reviews, `sentence-transformers/all-MiniLM-L6-v2` to encode those profiles, and a self-attention sequential recommender to score candidate items. Experiments cover three Amazon Reviews categories: Beauty, Video Games, and Movies & TV. The reported results compare vanilla SASRec, SASRec with textual profiles, and the combined retrieval-and-text model.
 
+## Method
+
+### 1. User preference profiles
+
+For each user, the preprocessing pipeline considers **training interactions only** when generating profiles. Ratings of **4–5** are treated as positive and **1–2** as negative; rating 3 is omitted from preference extraction. For each sentiment, up to 10 interactions are selected using review helpfulness, rating extremity, and review length. Qwen2.5-7B first extracts short preference statements from individual reviews and item metadata, then summarizes positive and negative preferences separately and combines them into a final profile.
+
+The resulting JSONL records contain `user_idx`, `positive_interactions`, `negative_interactions`, `positive_profile`, `negative_profile`, and `profile`.
+
+### 2. Text embeddings and neighbor retrieval
+
+User profiles are embedded using a frozen `all-MiniLM-L6-v2` encoder with attention-mask-aware mean pooling. Cosine similarity between normalized user embeddings identifies the **20 most similar other users** (subject to dataset size). Neighbor interactions are aggregated into a memory of up to **50 items per user**. Contributions are weighted by a softmax over user similarity (temperature 0.15) and interaction recency (decay factor 0.95); items already present in the target user's training history are excluded.
+
+### 3. SASRec with semantic and retrieved context
+
+The sequential backbone uses item and positional embeddings, causal multi-head self-attention, and point-wise feed-forward layers. Additional components are:
+
+- **Input-level item context:** a weighted neighbor-item vector is added to valid sequence item embeddings with a learned, bounded residual scale.
+- **User-profile fusion:** text embeddings are projected into the SASRec hidden dimension, normalized, and combined with sequence features using a learned element-wise gate.
+- **Context-level retrieval:** cross-attention uses sequence features as queries and weighted neighbor-item embeddings as keys and values, with a bounded residual update.
+- **Candidate-level retrieval:** a similarity-based neighbor-memory score is added to candidate item logits with a learned coefficient.
+
+The model is trained with positive and sampled-negative item prediction using binary cross-entropy and Adam. These retrieval components use the training interactions and learned item embeddings; they do **not** retrieve passages from an external document corpus.
+
 ## Dataset and preprocessing
 
-Experiments were conducted on three **Amazon Reviews categories**: **Beauty**, **Video Games**, and **Movies & TV**. The supplied preprocessing script currently defaults to `DATASET_NAME = "Video_Games"`, with inputs `Video_Games.json` and `meta_Video_Games.json`. To run another category, change `DATASET_NAME` and ensure that its review and metadata files match the expected schema. The exact source release and final processed dataset sizes should be added once confirmed.
+Experiments use three categories from the [Amazon Reviews 2023 dataset](https://amazon-reviews-2023.github.io/): **Beauty**, **Video Games**, and **Movies & TV**. The preprocessing script defaults to `DATASET_NAME = "Video_Games"`, with inputs `Video_Games.json` and `meta_Video_Games.json`. Other categories can be selected through `DATASET_NAME` with the corresponding review and metadata files. The experiments use filtered subsets rather than the full raw category datasets.
 
 Review fields include user ID, item ASIN, rating, timestamp, review title/text, and helpful-vote count. Metadata fields include item title, features, description, and categories. If a `verified_purchase` column exists, only verified purchases are retained. Interactions without essential identifiers, ratings, or timestamps are dropped, and repeated user–item interactions are deduplicated by keeping the latest record.
+
+The current user-selection configuration is:
+
+| Setting | Value |
+| --- | ---: |
+| Minimum interactions for eligible users | 5 |
+| Core-user threshold | 15 |
+| Target user count | 12,000 |
+| User sampling seed | 42 |
+| Maximum reviews per preference side | 10 |
+| Positive / negative thresholds | ≥4 / ≤2 |
+
+All users with at least 15 interactions are retained; users with 5–14 interactions are sampled to fill toward the target. The target is not a guarantee of the final user count. The script orders each user's interactions chronologically and initially labels the last two interactions validation and test, respectively, with earlier interactions assigned to training.
+
+**Dataset statistics:** final counts of users, items, and interactions depend on the input files and filtering. Add measured post-processing statistics here once available; they cannot be determined from the scripts alone.
 
 ## Requirements
 
 - Python with `torch`, `transformers`, `sentence-transformers` model access, `numpy`, and `pandas`
 - Local Qwen2.5-7B model files for profile generation
 - CUDA-capable GPU recommended for LLM inference and training
+
+Install dependencies using a project-specific, version-pinned `requirements.txt` once tested. Exact supported package versions are not established by the source files.
 
 ## Execution guide
 
@@ -46,7 +86,7 @@ python data_post_processing.py
 
 Outputs are `train.txt`, `test.txt`, and `item_mapping.csv`. The script selects one held-out test item per eligible user, shifts the test position backward when needed to choose an item present in the original training-item set, and randomly remaps item indices with seed 42.
 
-Place the resulting `train.txt` and `test.txt` under `data/` before training. **Important:** this postprocessing step changes item IDs, and the downstream loader expects zero-based IDs in these files (it adds one internally for padding). Keep all associated artifacts consistent with the remapping.
+Place the resulting `train.txt` and `test.txt` under `data/` before training. Postprocessing remaps item IDs to zero-based indices; the downstream loader adds one to reserve zero for padding. Related artifacts use the same remapping.
 
 ### Step 3 — Prepare profiles for training
 
@@ -82,9 +122,11 @@ The implementation reports **Hit Rate at 10 (HR@10)** and **Normalized Discounte
 
 The training loader additionally reserves the last item of sufficiently long `train.txt` histories for validation. The test evaluation uses this validation item in the input sequence, while the validation evaluation uses the preceding training history. Validation can be empty for users with short histories. The script prints training, validation, and test metrics at each evaluation interval; checkpoint selection uses validation NDCG@10.
 
+The preprocessing script initially marks a validation interaction, but postprocessing includes that interaction in `train.txt`. The training loader subsequently reserves the last eligible training interaction for validation, so the final validation split differs from the initial split labels.
+
 ## Experimental results
 
-The following results were provided for three Amazon Reviews categories. **Retrieval + Text** denotes the combined model, **Profiles Text** denotes the text-profile variant, and **SASRec** is the baseline. Higher is better for all metrics.
+The table reports results on three Amazon Reviews 2023 categories. **Retrieval + Text** denotes the combined model, **Profiles Text** denotes the text-profile variant, and **SASRec** is the baseline. Higher is better for all metrics.
 
 | Dataset | Method | NDCG@10 | HR@10 | NDCG@5 | HR@5 |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -98,9 +140,9 @@ The following results were provided for three Amazon Reviews categories. **Retri
 | Movies & TV | Profiles Text | 0.1265 | 0.2143 | 0.1048 | 0.1501 |
 | Movies & TV | SASRec | 0.1253 | 0.2051 | 0.1077 | 0.1532 |
 
-The combined model has the highest NDCG@10 and HR@10 in all three categories. For **Movies & TV**, however, the SASRec baseline has higher NDCG@5 than the Profiles Text variant, and higher HR@5 as well. Results are presented as supplied.
+The combined model has the highest NDCG@10 and HR@10 in all three categories. For **Movies & TV**, however, the SASRec baseline has higher NDCG@5 than the Profiles Text variant, and higher HR@5 as well. The table reports individual metric values without repeated-run variability or statistical significance estimates.
 
-**Comparison caveat:** the provided evaluation code samples 1,000 negative item IDs per positive target. The results should be compared only when the same dataset processing, split, and evaluation protocol were used for all variants. The provided results image does not independently establish those experimental controls.
+Evaluation ranks each positive target against 1,000 sampled negative item IDs rather than the full item catalog. Cross-model comparisons depend on consistent preprocessing, data splits, and evaluation settings.
 
 ## Source files
 
@@ -116,4 +158,17 @@ The combined model has the highest NDCG@10 and HR@10 in all three categories. Fo
 
 This implementation was developed using the [SASRec PyTorch implementation by pmixer](https://github.com/pmixer/SASRec.pytorch) as its starting point. Credit for the underlying SASRec implementation belongs to its original contributors. The project also uses Qwen2.5-7B for preference-profile generation and `sentence-transformers/all-MiniLM-L6-v2` for profile embeddings.
 
-Please consult the upstream repository's license and attribution requirements before redistributing modified code. Add a citation and download link for the precise Amazon Reviews dataset release used in the experiments.
+### Dataset citation
+
+The experiments use the [Amazon Reviews 2023 dataset](https://amazon-reviews-2023.github.io/) from McAuley Lab. Its official website requests citation of:
+
+> Hou, Y., Li, J., He, Z., Yan, A., Chen, X., & McAuley, J. (2024). *Bridging Language and Items for Retrieval and Recommendation*. arXiv:2403.03952. [Paper](https://arxiv.org/abs/2403.03952).
+
+```bibtex
+@article{hou2024bridging,
+  title={Bridging Language and Items for Retrieval and Recommendation},
+  author={Hou, Yupeng and Li, Jiacheng and He, Zhankui and Yan, An and Chen, Xiusi and McAuley, Julian},
+  journal={arXiv preprint arXiv:2403.03952},
+  year={2024}
+}
+```

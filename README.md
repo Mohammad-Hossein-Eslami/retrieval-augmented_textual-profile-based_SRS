@@ -113,6 +113,21 @@ The evaluation code uses 1,000 sampled negative item IDs per positive target, so
 | `model.py` | SASRec backbone and profile/retrieval fusion modules |
 | `utils.py` | Data loading, sampling, metrics, and text embedding |
 
+
+
+
+## Research Extensions
+
+Following the completion of my undergraduate thesis, I continued exploring architectural extensions to the recommendation framework, focusing on:
+
+- Signed graph neural networks for modeling positive and negative user-item interactions.
+- Multi-view contrastive learning for aligning semantic and graph-based representations.
+- Prototype-based representation learning.
+
+The experimental implementation is available in the [research-extensions](../../tree/research-extensions) branch.
+
+This branch contains exploratory research code and is not a finalized implementation. The main branch preserves the original thesis implementation and its reported results.
+
 ## Acknowledgments
 
 This implementation builds upon the [SASRec PyTorch implementation by pmixer](https://github.com/pmixer/SASRec.pytorch). The project uses Qwen2.5-7B for preference-profile generation and `sentence-transformers/all-MiniLM-L6-v2` for profile embeddings.
